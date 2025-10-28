@@ -4,3 +4,11 @@ dist/
 .DS_Store
 .env
 coverage/
+
+# Prevent compiled files in source directories
+src/**/*.js
+src/**/*.d.ts
+src/**/*.js.map
+test/**/*.js
+test/**/*.d.ts
+test/**/*.js.map

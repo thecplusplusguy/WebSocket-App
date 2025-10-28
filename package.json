@@ -2,14 +2,13 @@
   "name": "websocket-app",
   "version": "1.0.0",
   "description": "WebSocket server that returns random sensor/metric data",
-  "main": "dist/index.js",
+  "main": "dist/src/index.js",
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "build:test": "tsc -p tsconfig.test.json",
-    "test": "npm run build:test && node --test dist/test/",
-    "test:watch": "tsc -p tsconfig.test.json --watch & node --test --watch dist/test/",
-    "start": "npm run build && node dist/index.js",
+    "test": "npm run build && node --test dist/test/",
+    "test:watch": "tsc --watch & node --test --watch dist/test/",
+    "start": "npm run build && node dist/src/index.js",
     "dev": "tsc --watch"
   },
   "keywords": ["websocket", "sensor", "metrics"],
