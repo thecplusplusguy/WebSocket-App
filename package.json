@@ -6,9 +6,9 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "test": "npm run build && node --test dist/test/",
+    "test": "npm run build && node --test dist/test/*.test.js",
     "test:watch": "tsc --watch & node --test --watch dist/test/",
-    "start": "npm run build && node dist/src/index.js",
+    "start": "npm run build && PORT=8081 node dist/src/index.js",
     "dev": "tsc --watch"
   },
   "keywords": ["websocket", "sensor", "metrics"],
