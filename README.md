@@ -1,10 +1,11 @@
 # WebSocket Sensor Data Server
 
-A WebSocket server built with Node.js and TypeScript that returns random sensor/metric data on demand.
+A WebSocket server built with Node.js and TypeScript that streams random sensor/metric data automatically to connected clients.
 
 ## Features
 
-- Returns random arrays of sensor data (1-100 items per request)
+- Automatically streams random arrays of sensor data (1-100 items) every 5 seconds
+- Data sent immediately upon client connection
 - Supports multiple concurrent clients
 - Graceful error handling
 - Built with Test-Driven Development (TDD)
@@ -29,7 +30,7 @@ npm install
 npm start
 ```
 
-The server will start on `ws://localhost:8080` by default.
+The server will start on `ws://localhost:8081` by default.
 
 ### Custom Port
 
@@ -58,21 +59,16 @@ This runs all 15 tests:
 
 ### Connection
 
-Connect to the WebSocket server at `ws://localhost:8080` (or your configured port).
+Connect to the WebSocket server at `ws://localhost:8081` (or your configured port).
 
-### Request Format
+**The server automatically sends data:**
+- Immediately upon connection
+- Every 5 seconds thereafter
+- No client message required
 
-To request sensor data, send a JSON message with the following format:
+### Data Stream Format
 
-```json
-{
-  "action": "getData"
-}
-```
-
-### Response Format
-
-The server responds with a JSON array of sensor data objects:
+The server streams JSON arrays of sensor data objects:
 
 ```json
 [
@@ -104,16 +100,12 @@ The server responds with a JSON array of sensor data objects:
 - `air_quality`
 - `co2`
 
-**Array Size:** Each response contains a random number of items (1-100).
+**Array Size:** Each data stream contains a random number of items (1-100).
 
-### Error Handling
-
-If you send invalid JSON or a malformed message, the server will:
-1. Log the invalid message to the console
-2. Continue operating normally
-3. Not send any response for that invalid message
-
-The server will still respond to subsequent valid messages.
+**Streaming Behavior:**
+- Data is sent immediately when a client connects
+- New data is automatically sent every 5 seconds
+- Each client receives independent data streams
 
 ## Testing with a WebSocket Client
 
@@ -127,29 +119,25 @@ npm install -g wscat
 Connect and test:
 ```bash
 # Connect to the server
-wscat -c ws://localhost:8080
+wscat -c ws://localhost:8081
 
-# Send a request (type this after connecting)
-{"action":"getData"}
-
-# You'll receive a JSON array of sensor data
+# You'll immediately receive a JSON array of sensor data
+# New data will arrive automatically every 5 seconds
 ```
 
 ### Using Browser Console
 
 ```javascript
 // Connect to the server
-const ws = new WebSocket('ws://localhost:8080');
+const ws = new WebSocket('ws://localhost:8081');
 
 // Handle connection open
 ws.onopen = () => {
   console.log('Connected to server');
-
-  // Request data
-  ws.send(JSON.stringify({ action: 'getData' }));
+  console.log('Waiting for automatic data stream...');
 };
 
-// Handle incoming messages
+// Handle incoming messages (automatically sent every 5 seconds)
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
   console.log('Received sensor data:', data);
@@ -172,24 +160,18 @@ ws.onclose = () => {
 ```javascript
 import WebSocket from 'ws';
 
-const client = new WebSocket('ws://localhost:8080');
+const client = new WebSocket('ws://localhost:8081');
 
 client.on('open', () => {
   console.log('Connected to server');
-
-  // Request data
-  client.send(JSON.stringify({ action: 'getData' }));
+  console.log('Waiting for automatic data stream...');
 });
 
+// Data arrives automatically every 5 seconds
 client.on('message', (data) => {
   const sensorData = JSON.parse(data.toString());
   console.log('Received sensor data:', sensorData);
   console.log('Number of items:', sensorData.length);
-
-  // Request more data
-  setTimeout(() => {
-    client.send(JSON.stringify({ action: 'getData' }));
-  }, 1000);
 });
 
 client.on('error', (error) => {
@@ -246,26 +228,29 @@ $ npm start
 > websocket-app@1.0.0 start
 > npm run build && node dist/index.js
 
-WebSocket server is running on ws://localhost:8080
-Send {"action": "getData"} to receive random sensor data
+WebSocket server is running on ws://localhost:8081
+Clients will receive sensor data automatically every 5 seconds
 
 # Terminal 2: Connect with wscat
-$ wscat -c ws://localhost:8080
+$ wscat -c ws://localhost:8081
 Connected (press CTRL+C to quit)
 
-> {"action":"getData"}
-< [{"timestamp":"2025-10-28T20:05:05.413Z","value":69.03,"type":"co2"}, ...]
-
-> {"action":"getData"}
-< [{"timestamp":"2025-10-28T20:05:06.123Z","value":23.45,"type":"temperature"}, ...]
+< [{"timestamp":"2025-11-03T20:05:05.413Z","value":69.03,"type":"co2"}, ...]
+# (wait 5 seconds)
+< [{"timestamp":"2025-11-03T20:05:10.413Z","value":23.45,"type":"temperature"}, ...]
+# (wait 5 seconds)
+< [{"timestamp":"2025-11-03T20:05:15.413Z","value":87.12,"type":"humidity"}, ...]
 ```
 
 ## Notes
 
-- Each request returns a newly generated random dataset
+- Each data stream contains a newly generated random dataset
+- Data is sent automatically every 5 seconds to all connected clients
+- Each client receives independent data streams with their own timers
 - The server can handle multiple simultaneous client connections
 - All timestamps are in UTC
 - The server logs all sent data for debugging purposes
+- Connection timers are properly cleaned up when clients disconnect
 
 ## License
 

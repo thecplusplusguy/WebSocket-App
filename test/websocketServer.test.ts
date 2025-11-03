@@ -31,17 +31,13 @@ test('client can connect to server', async () => {
   await server.stop();
 });
 
-test('server responds with sensor data when client sends request', async () => {
+test('server sends sensor data immediately on connect', async () => {
   const server = new WebSocketServer(8082);
   await server.start();
 
   const client = new WebSocket('ws://localhost:8082');
 
   await new Promise<void>((resolve, reject) => {
-    client.on('open', () => {
-      client.send(JSON.stringify({ action: 'getData' }));
-    });
-
     client.on('message', (data) => {
       try {
         const response = JSON.parse(data.toString());
@@ -88,10 +84,6 @@ test('server handles multiple clients simultaneously', async () => {
 
   await Promise.all([
     new Promise<void>((resolve, reject) => {
-      client1.on('open', () => {
-        client1.send(JSON.stringify({ action: 'getData' }));
-      });
-
       client1.on('message', (data) => {
         try {
           responses.push(JSON.parse(data.toString()));
@@ -105,10 +97,6 @@ test('server handles multiple clients simultaneously', async () => {
       client1.on('error', reject);
     }),
     new Promise<void>((resolve, reject) => {
-      client2.on('open', () => {
-        client2.send(JSON.stringify({ action: 'getData' }));
-      });
-
       client2.on('message', (data) => {
         try {
           responses.push(JSON.parse(data.toString()));
@@ -127,38 +115,47 @@ test('server handles multiple clients simultaneously', async () => {
   await server.stop();
 });
 
-test('server ignores invalid messages', async () => {
+test('server sends data at 5-second intervals', async () => {
   const server = new WebSocketServer(8084);
   await server.start();
 
   const client = new WebSocket('ws://localhost:8084');
+  const receivedMessages: any[] = [];
 
   await new Promise<void>((resolve, reject) => {
-    let messageCount = 0;
-
-    client.on('open', () => {
-      // Send invalid message
-      client.send('not valid json');
-
-      // Then send valid message
-      setTimeout(() => {
-        client.send(JSON.stringify({ action: 'getData' }));
-      }, 100);
-    });
+    const timeout = setTimeout(() => {
+      reject(new Error('Test timeout - did not receive expected messages'));
+    }, 10000); // 10 seconds to allow for initial + one interval
 
     client.on('message', (data) => {
       try {
-        messageCount++;
         const response = JSON.parse(data.toString());
-        assert.ok(Array.isArray(response), 'Should receive valid response after invalid message');
-        client.close();
-        resolve();
+        receivedMessages.push(response);
+
+        // After receiving 2 messages (initial + one interval), we're done
+        if (receivedMessages.length === 2) {
+          clearTimeout(timeout);
+          client.close();
+          resolve();
+        }
       } catch (error) {
+        clearTimeout(timeout);
         reject(error);
       }
     });
 
-    client.on('error', reject);
+    client.on('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+  });
+
+  // Verify we got 2 messages
+  assert.strictEqual(receivedMessages.length, 2, 'Should receive 2 messages (initial + 1 interval)');
+
+  // Verify both are valid sensor data arrays
+  receivedMessages.forEach((msg, index) => {
+    assert.ok(Array.isArray(msg), `Message ${index} should be an array`);
   });
 
   await server.stop();

@@ -1,5 +1,5 @@
-// ABOUTME: WebSocket server that handles client connections and data requests
-// ABOUTME: Listens for 'getData' action and responds with random sensor data
+// ABOUTME: WebSocket server that streams sensor data to connected clients
+// ABOUTME: Sends random sensor data immediately on connect and every 5 seconds thereafter
 
 import { WebSocketServer as WSServer, WebSocket } from 'ws';
 import { generateSensorData } from './dataGenerator.js';
@@ -7,6 +7,7 @@ import { generateSensorData } from './dataGenerator.js';
 export class WebSocketServer {
   private wss: WSServer | null = null;
   private port: number;
+  private clientIntervals: Map<WebSocket, NodeJS.Timeout> = new Map();
 
   constructor(port: number) {
     this.port = port;
@@ -17,19 +18,31 @@ export class WebSocketServer {
       this.wss = new WSServer({ port: this.port });
 
       this.wss.on('connection', (ws: WebSocket) => {
-        ws.on('message', (message: Buffer) => {
-          const messageStr = message.toString();
-          try {
-            const data = JSON.parse(messageStr);
+        // Send data immediately on connect
+        const initialData = generateSensorData();
+        const initialJson = JSON.stringify(initialData);
+        console.log('Sending initial data:', initialJson);
+        ws.send(initialJson);
 
-            if (data.action === 'getData') {
-              const sensorData = generateSensorData();
-              const jsonResponse = JSON.stringify(sensorData);
-              console.log('Sending data:', jsonResponse);
-              ws.send(jsonResponse);
-            }
-          } catch (error) {
-            console.log('not valid json:', messageStr);
+        // Set up interval to send data every 5 seconds
+        const interval = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            const sensorData = generateSensorData();
+            const jsonResponse = JSON.stringify(sensorData);
+            console.log('Sending interval data:', jsonResponse);
+            ws.send(jsonResponse);
+          }
+        }, 5000); // 5 seconds in milliseconds
+
+        // Store interval for cleanup
+        this.clientIntervals.set(ws, interval);
+
+        // Clean up interval on disconnect
+        ws.on('close', () => {
+          const clientInterval = this.clientIntervals.get(ws);
+          if (clientInterval) {
+            clearInterval(clientInterval);
+            this.clientIntervals.delete(ws);
           }
         });
       });
@@ -46,6 +59,12 @@ export class WebSocketServer {
         resolve();
         return;
       }
+
+      // Clear all client intervals
+      this.clientIntervals.forEach((interval) => {
+        clearInterval(interval);
+      });
+      this.clientIntervals.clear();
 
       this.wss.close((err) => {
         if (err) {

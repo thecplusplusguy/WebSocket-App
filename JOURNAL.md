@@ -29,7 +29,7 @@ Built using TDD (Test-Driven Development):
 - Supports multiple concurrent clients
 
 **3. Main Entry Point (src/index.ts)**
-- Starts server on port 8080 (configurable via PORT env var)
+- Starts server on port 8081 (configurable via PORT env var)
 - Graceful shutdown on SIGINT/SIGTERM
 
 **4. Test Suite (15 tests, all passing)**
@@ -70,7 +70,7 @@ Connect with WebSocket client and send:
 - All code follows TDD: tests written first, then implementation
 - TypeScript for type safety
 - Clean error handling with user-friendly debug output
-- Server runs on ws://localhost:8080 by default
+- Server runs on ws://localhost:8081 by default
 
 ### Session Complete
 - Successfully built complete WebSocket server with TDD
@@ -88,5 +88,49 @@ Connect with WebSocket client and send:
 - Updated .gitignore to prevent compiled files in src/test directories
 - All 15 tests still passing after refactor
 - Build configuration simplified and maintainable
+
+## 2025-11-03
+
+### Server Behavior Change: Auto-Streaming Implementation
+- Changed from request/response model to automatic streaming
+- Server now sends sensor data immediately upon client connection
+- Data automatically streams every 5 seconds to all connected clients
+- No client message required - data starts flowing on connect
+
+**Implementation Changes:**
+- Updated `src/websocketServer.ts`:
+  - Removed message handler for "getData" action
+  - Added immediate data send on connection
+  - Implemented 5-second interval timer using `setInterval`
+  - Added proper cleanup of intervals when clients disconnect
+  - Maintains Map of client intervals for proper resource management
+
+- Updated tests to match new behavior:
+  - `websocketServer.test.ts`: Removed message sending from tests, expect auto-delivery
+  - `e2e.test.ts`: Updated to wait for interval-based streaming
+  - All tests updated with 10-second timeouts (sufficient for 5-second interval + buffer)
+  - Test: "server sends data at 5-second intervals" validates streaming behavior
+
+**Test Results:**
+- All 15 tests passing
+- Unit tests (7): Data generation unchanged
+- Integration tests (5): Updated for auto-streaming
+- E2E tests (3): Updated for interval-based delivery
+
+**How to Use (Updated):**
+```bash
+npm start  # Start the server
+```
+
+Connect with WebSocket client - no message needed:
+- Data streams immediately on connection
+- Fresh data every 5 seconds automatically
+- Server runs on ws://localhost:8081 by default
+
+**Technical Notes:**
+- Each client gets independent interval timer
+- Intervals properly cleaned up on disconnect to prevent memory leaks
+- Server maintains Map<WebSocket, NodeJS.Timeout> for interval tracking
+- All intervals cleared when server stops
 
 ---

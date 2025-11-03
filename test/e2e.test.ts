@@ -16,11 +16,6 @@ test('e2e: complete flow from server start to data retrieval', async () => {
   const client = new WebSocket(`ws://localhost:${PORT}`);
 
   await new Promise<void>((resolve, reject) => {
-    client.on('open', () => {
-      assert.ok(true, 'Client connected');
-      client.send(JSON.stringify({ action: 'getData' }));
-    });
-
     client.on('message', (data) => {
       try {
         const response = JSON.parse(data.toString());
@@ -55,7 +50,7 @@ test('e2e: complete flow from server start to data retrieval', async () => {
   assert.ok(!server.isRunning(), 'Server should be stopped');
 });
 
-test('e2e: multiple sequential requests return different data', async () => {
+test('e2e: server streams different data at intervals', async () => {
   const PORT = 9001;
   const server = new WebSocketServer(PORT);
 
@@ -65,40 +60,35 @@ test('e2e: multiple sequential requests return different data', async () => {
   const responses: any[] = [];
 
   await new Promise<void>((resolve, reject) => {
-    client.on('open', () => {
-      client.send(JSON.stringify({ action: 'getData' }));
-    });
-
-    let messageCount = 0;
+    const timeout = setTimeout(() => {
+      reject(new Error('Test timeout waiting for interval data'));
+    }, 10000);
 
     client.on('message', (data) => {
       try {
         const response = JSON.parse(data.toString());
         responses.push(response);
-        messageCount++;
 
-        if (messageCount === 1) {
-          // Request second batch
-          setTimeout(() => {
-            client.send(JSON.stringify({ action: 'getData' }));
-          }, 50);
-        } else if (messageCount === 2) {
+        if (responses.length === 2) {
+          clearTimeout(timeout);
           client.close();
           resolve();
         }
       } catch (error) {
+        clearTimeout(timeout);
         reject(error);
       }
     });
 
-    client.on('error', reject);
+    client.on('error', (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
   });
 
   assert.strictEqual(responses.length, 2, 'Should receive 2 responses');
 
-  // Verify responses are different (highly likely with random data)
-  const firstArraySize = responses[0].length;
-  const secondArraySize = responses[1].length;
+  // Verify responses are different (timestamps at minimum will differ)
   const firstJson = JSON.stringify(responses[0]);
   const secondJson = JSON.stringify(responses[1]);
 
@@ -128,10 +118,6 @@ test('e2e: server recovers gracefully from client disconnect', async () => {
   const client2 = new WebSocket(`ws://localhost:${PORT}`);
 
   await new Promise<void>((resolve, reject) => {
-    client2.on('open', () => {
-      client2.send(JSON.stringify({ action: 'getData' }));
-    });
-
     client2.on('message', (data) => {
       try {
         const response = JSON.parse(data.toString());
